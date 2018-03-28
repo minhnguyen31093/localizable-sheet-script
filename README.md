@@ -43,6 +43,12 @@ The position of the first (iOS) column that is relevant to the script is changed
 
 The exported files are the standard format (`strings.xml` or `Localizable.strings`) for the specific platforms. iOS also includes a `Localizable` `enum` which contains all of the keys as `static let` properties for code-completion and less typos. 
 
+## Sample
+https://drive.google.com/open?id=14ES9zth20hE2pDpYN0eMwUAsDAS7e2P517StQ27dvrw
+
+<img src="https://raw.githubusercontent.com/minhnguyen31093/localizable-sheet-script/master/1.jpg" width="640"/>
+<img src="https://raw.githubusercontent.com/minhnguyen31093/localizable-sheet-script/master/2.jpg" width="640"/>
+
 ## License: MIT
 
 Created by COBE http://cobeisfresh.com/
