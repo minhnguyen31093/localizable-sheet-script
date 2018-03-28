@@ -15,14 +15,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
    The number of languages you support. Please check the README.md for more
    information on column positions.
 */
-var NUMBER_OF_LANGUAGES = 1;
+var NUMBER_OF_LANGUAGES = 3;
 
 /* 
    The script expects two columns for iOS and Android identifiers, respectively,
    and a column after that with all of the string values. This is the position of
    the iOS column.
 */
-var FIRST_COLUMN_POSITION = 1;
+var FIRST_COLUMN_POSITION = 2;
 
 /*
    The position of the header containing the strings "Identifier iOS" and "Identifier Android"
@@ -33,7 +33,7 @@ var HEADER_ROW_POSITION = 1;
    True if iOS output should contain a `Localizable` `enum` that contains all of
    the keys as string constants.
 */
-var IOS_INCLUDES_LOCALIZABLE_ENUM = true;
+var IOS_INCLUDES_LOCALIZABLE_ENUM = false;
 
 
 // Constants
@@ -75,15 +75,32 @@ function exportForAndroid() {
    Fetches the active sheet, gets all of the data and displays the
    result strings.
 */
+function getColumnNrByName(sheet, name) {
+  var range = sheet.getRange(1, 1, 1, sheet.getMaxColumns());
+  var values = range.getValues();
+  
+  for (var row in values) {
+    for (var col in values[row]) {
+      if (values[row][col] == name) {
+        return parseInt(col);
+      }
+    }
+  }
+  
+  throw 'failed to get column by name';
+}
+
 function exportSheet(e) {
   
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getActiveSheet();
+  FIRST_COLUMN_POSITION = getColumnNrByName(sheet, 'String ID');
   var rowsData = getRowsData_(sheet, getExportOptions(e));
 
   var strings = [];
+  
   for (var i = 0; i < NUMBER_OF_LANGUAGES; i++) {
-    strings.push(makeString(rowsData, i, getExportOptions(e)));
+    strings.push(makeString(rowsData, i+1, getExportOptions(e)));
   }
   return displayTexts_(strings);
 }
@@ -94,7 +111,6 @@ function getExportOptions(e) {
   options.language = e && e.parameter.language || DEFAULT_LANGUAGE;  
   return options;
 }
-
 
 // UI Elements
 
@@ -128,19 +144,30 @@ function makeButton(app, parent, name, callback) {
   return button;
 }
 
-function makeTextBox(app, name) { 
-  var textArea = app.createTextArea().setWidth('100%').setHeight('100px').setId(name).setName(name);
+function makeTextBox(app, name) {
+  var textArea = app.createTextArea().setWidth('100%').setHeight('200px').setId(name).setName(name);
   return textArea;
 }
 
 function displayTexts_(texts) {
-  
   var app = UiApp.createApplication().setTitle('Export');
-
+  var scrollPanlel = app.createScrollPanel().setWidth('100%').setHeight('100%');
+  var vPanel = app.createTabPanel().setWidth('100%');
+  var languageCount = 1;
+  
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var headers = sheet.getRange(1, FIRST_COLUMN_POSITION + 2, 1, sheet.getMaxColumns()).getValues()[0];
   for (var i = 0; i < texts.length; i++) {
-    app.add(makeTextBox(app, 'json' + i));
-    app.getElementById('json' + i).setText(texts[i]); 
+    vPanel.add(makeTextBox(app, 'json' + i).setText(texts[i]), headers[i]);
+    languageCount++;
   }
+  vPanel.selectTab(0);
+  
+  //Add the vertical panel to scroll panel
+  scrollPanlel.add(vPanel);
+
+  //Add the scroll panel to the application
+  app.add(scrollPanlel);
   
   var ss = SpreadsheetApp.getActiveSpreadsheet(); 
   ss.show(app);
@@ -172,18 +199,43 @@ function makeAndroidString(object, textIndex, options) {
   var exportString = "";
   var prevIdentifier = "";
   
-  exportString = '<?xml version="1.0" encoding="UTF-8"?>' + "\n";
+  exportString = '<?xml version="1.0" encoding="utf-8"?>' + "\n";
   exportString += "<resources>\n";
   
   for(var i=0; i<object.length; i++) {
     
     var o = object[i];
-    var identifier = o.identifierAndroid;
+    var identifier = o.stringId;
     
     var text = o.texts[textIndex];
     
     if (text == undefined || text == "") {
       continue;
+    }
+    text = text.toString();
+    text = text.trim()
+    text = text.replace(/(?:\r\n|\r|\n)/g, '\\n');
+    text = text.replace(/(?:")/g, '\\"');
+    text = text.replace(/(?:')/g, "\\'");
+    text = text.replace(/(?:-)/g, "–");
+    text = text.replace(/(?:\.\.\.)/g, "…");
+    text = text.replace(/(?:%@|%i)/g, '%s');
+    text = text.replace(/(?:\$@|\$i)/g, '$s');
+    text = text.replace(/(?:&)/g, '&amp;');
+    text = text.replace(/(?:<)/g, '&lt;');
+    text = text.replace(/(?:>)/g, '&gt;');
+    
+    var arrayText = text.split("%s");
+    if (arrayText.length - 1 > 1) {
+      text = "";
+      var count = 1;
+      for(var ns = 0; ns < arrayText.length; ns++) {
+        text += arrayText[ns];
+        if (ns < arrayText.length - 1) {
+          text += "%" + count + "$s";
+          count++;
+        }
+      }
     }
     
     if(identifier == "") {
@@ -235,8 +287,11 @@ function makeIosString(object, textIndex, options) {
       if (text == undefined || text == "") {
         continue;
       }
+      text = text.toString();
+      text = text.trim()
+      text = text.replace(/(?:\r\n|\r|\n)/g, '\\n');
     
-      var identifier = o.identifierIos;
+      var identifier = o.stringId;
       
       if (identifier == "") {
         continue;
@@ -252,12 +307,15 @@ function makeIosString(object, textIndex, options) {
   
   for(var i=0; i<object.length; i++) {
     var o = object[i];
-    var identifier = o.identifierIos;
+    var identifier = o.stringId;
     var text = o.texts[textIndex];
     
     if (text == undefined || text == "") {
       continue;
     }
+    text = text.toString();
+    text = text.trim()
+    text = text.replace(/(?:\r\n|\r|\n)/g, '\\n');
     
     if(identifier == "") {
       continue;
@@ -363,7 +421,7 @@ function getObjects(data, keys) {
         cellData = "";
       }
       
-      if (keys[j] != "identifierIos" && keys[j] != "identifierAndroid") {
+      if (keys[j] != "stringId") {
         object["texts"].push(cellData);
       } else {
         object[keys[j]] = cellData;
